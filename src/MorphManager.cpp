@@ -154,6 +154,31 @@ namespace Mus {
         }
 		PerformaceLog(GetHexStr(id) + "::MorphManager::" + __func__, false);
 
+        // validation pass to avoid CTDs
+		if (!isNeedUpdateFacegen && !morphGeoDatas.empty())
+        {
+            auto facegen = actor->GetFaceNode();
+            if (!facegen)
+            {
+                isNeedUpdateFacegen = true;
+            }
+            else
+            {
+                auto& children = facegen->children;
+                for (const auto& data : morphGeoDatas)
+                {
+                    bool found = false;
+                    for (std::uint32_t j = 0; j < children.size() && !found; j++)
+                        found = (children[j].get() == data.dynamicShape);
+                    if (!found)
+                    {
+                        isNeedUpdateFacegen = true;
+                        break;
+                    }
+                }
+            }
+        }
+
 		if (isNeedUpdateFacegen)
 		{
             auto facegen = actor->GetFaceNode();
@@ -200,8 +225,8 @@ namespace Mus {
                     .dynamicShape = dynamicTri,
                     .dynamicVertices = dynamicVertices,
                     .vertexCount = vertexCount,
-					.isSameHash = false
-				};
+                    .isSameHash = false
+                };
                 morphGeoDatas.push_back(std::move(data));
             }
             isNeedUpdateFacegen = false;
@@ -209,6 +234,14 @@ namespace Mus {
 
         for (auto& data : morphGeoDatas)
         {
+            DirectX::XMVECTOR* freshVerts = reinterpret_cast<DirectX::XMVECTOR*>(data.dynamicShape->GetDynamicTrishapeRuntimeData().dynamicData);
+            if (!freshVerts)
+            {
+                isNeedUpdateFacegen = true;
+                morphGeoDatas.clear();
+                return;
+            }
+            data.dynamicVertices = freshVerts;
             auto newHash = GetHash(data);
             data.isSameHash = (newHash == lastHash[data.dynamicShape]);
         }
