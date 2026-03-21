@@ -212,12 +212,19 @@ namespace Mus {
             auto newHash = GetHash(data);
             data.isSameHash = (newHash == lastHash[data.dynamicShape]);
         }
+        std::vector<MorphManagerRecordPtr> recordSnapshot;
+        {
+            std::shared_lock sl(recordLock);
+            recordSnapshot.reserve(record.size());
+            for (const auto& entry : record)
+                recordSnapshot.emplace_back(entry.second);
+        }
         bool isUpdated = false;
-        for (const auto& map : record)
-		{
-			map.second->UpdateLerpValue(processTime);
-            isUpdated |= map.second->Update(morphGeoDatas);
-		}
+        for (const auto& rec : recordSnapshot)
+        {
+            rec->UpdateLerpValue(processTime);
+            isUpdated |= rec->Update(morphGeoDatas);
+        }
         if (!isUpdated)
             return;
 		for (const auto& data : morphGeoDatas)
@@ -254,7 +261,7 @@ namespace Mus {
 
 	std::int32_t MorphManager::GetValue(const lString& a_morphName, bool destination) const
     {
-        std::lock_guard lg(recordLock);
+        std::shared_lock lg(recordLock);
         auto found = record.find(a_morphName);
         if (found != record.end())
             return found->second->GetValue(destination);
@@ -391,7 +398,7 @@ namespace Mus {
 	std::vector<MorphManager::ActiveMorphSet> MorphManager::GetAllActiveMorphs()
 	{
         std::vector<ActiveMorphSet> result;
-        std::lock_guard lg(recordLock);
+        std::shared_lock lg(recordLock);
         for (const auto& m : record)
 		{
 			if (m.second->GetValue() != 0)
